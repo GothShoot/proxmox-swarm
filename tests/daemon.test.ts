@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -44,8 +44,23 @@ describe('daemon deploy', () => {
     }
   });
 
+  beforeEach(() => {
+    runMock.mockClear();
+  });
+
   it('creates multiple containers and passes options', async () => {
-    const yaml = `services:\n  app:\n    image: img\n    ports: ['80:80']\n    environment:\n      NODE_ENV: test\n    deploy:\n      replicas: 2\nvolumes: {}`;
+    const yaml = `
+services:
+  app:
+    image: img
+    ports:
+      - "80:80"
+    environment:
+      NODE_ENV: test
+    deploy:
+      replicas: 2
+volumes: {}
+`;
     const dir = fs.mkdtempSync(join(tmpdir(), 'compose-'));
     const file = join(dir, 'compose.yml');
     fs.writeFileSync(file, yaml);
@@ -69,6 +84,38 @@ describe('daemon deploy', () => {
     for (const call of runMock.mock.calls) {
       expect(call[3]).toEqual({ ports: ['80:80'], environment: { NODE_ENV: 'test' } });
     }
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('defaults to one replica when not specified', async () => {
+    const yaml = `
+services:
+  app:
+    image: img
+volumes: {}
+`;
+    const dir = fs.mkdtempSync(join(tmpdir(), 'compose-'));
+    const file = join(dir, 'compose.yml');
+    fs.writeFileSync(file, yaml);
+    const body = JSON.stringify({ compose: file });
+
+    await new Promise<void>((resolve) => {
+      const req = http.request({
+        socketPath,
+        path: '/deploy',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }, (res) => {
+        res.on('data', () => {});
+        res.on('end', resolve);
+      });
+      req.write(body);
+      req.end();
+    });
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    expect(runMock.mock.calls[0][3]).toEqual({ ports: [], environment: {} });
 
     fs.rmSync(dir, { recursive: true, force: true });
   });

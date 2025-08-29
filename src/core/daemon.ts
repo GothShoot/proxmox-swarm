@@ -125,8 +125,9 @@ const server = http.createServer(async (req, res) => {
         }
 
           for (const [name, cfg] of Object.entries(services)) {
-            for (let i = 0; i < cfg.replicas; i++) {
-              const instance = cfg.replicas > 1 ? `${name}-${i + 1}` : name;
+            const replicas = cfg.replicas ?? 1;
+            for (let i = 0; i < replicas; i++) {
+              const instance = replicas > 1 ? `${name}-${i + 1}` : name;
               const status = proxmox.run('deploy', [instance, cfg.image], auth ?? {}, {
                 ports: cfg.ports,
                 environment: cfg.environment,
