@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Dict, List
+import logging
+import os
 import yaml
 
 
@@ -24,21 +26,38 @@ class LXCServiceConfig:
 def _parse_environment(env: object) -> Dict[str, str]:
     """Normalise the environment section of a service definition."""
     if isinstance(env, dict):
-        return {str(k): str(v) for k, v in env.items()}
+        parsed: Dict[str, str] = {}
+        for k, v in env.items():
+            key = str(k)
+            if v is None:
+                parsed[key] = os.environ.get(key, "")
+            else:
+                parsed[key] = str(v)
+        return parsed
     if isinstance(env, list):
         parsed: Dict[str, str] = {}
         for item in env:
             if isinstance(item, str) and "=" in item:
                 key, value = item.split("=", 1)
                 parsed[key] = value
+            else:
+                logging.warning("Ignoring malformed environment entry: %r", item)
         return parsed
+    if env is not None:
+        logging.warning("Unrecognised environment type: %r", type(env))
     return {}
 
 
 def parse_compose(path: str) -> Dict[str, LXCServiceConfig]:
     """Parse a Docker Compose file into LXC service configurations."""
-    with open(path, "r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            try:
+                data = yaml.safe_load(fh) or {}
+            except yaml.YAMLError as exc:
+                raise ValueError(f"Invalid YAML in {path}: {exc}") from exc
+    except OSError as exc:
+        raise FileNotFoundError(f"Failed to read compose file {path}: {exc}") from exc
 
     services = data.get("services", {})
     configs: Dict[str, LXCServiceConfig] = {}
@@ -49,7 +68,7 @@ def parse_compose(path: str) -> Dict[str, LXCServiceConfig]:
         environment = _parse_environment(spec.get("environment"))
 
         deploy = spec.get("deploy", {})
-        replicas = deploy.get("replicas", 1)
+        replicas = deploy.get("replicas")
         placement = deploy.get("placement", {})
         constraints = placement.get("constraints", [])
 
@@ -57,7 +76,7 @@ def parse_compose(path: str) -> Dict[str, LXCServiceConfig]:
             image=image,
             ports=list(ports) if isinstance(ports, list) else [],
             environment=environment,
-            replicas=int(replicas) if isinstance(replicas, int) else 1,
+            replicas=int(replicas) if replicas is not None else 1,
             constraints=list(constraints) if isinstance(constraints, list) else [],
         )
 
