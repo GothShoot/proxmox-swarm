@@ -2,31 +2,18 @@ import { Command } from 'commander';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { ensureRuntimeDir, pidFile, logFile } from './runtime';
-import { runProxmox, ProxmoxAuth } from './proxmox';
-import { parseCompose } from './composeParser';
-import { attachToSDN } from './sdn';
+import { ensureRuntimeDir, pidFile, logFile } from '../core/runtime';
+import { ProxmoxAuth, ProxmoxClient } from '../adapters/proxmoxClient';
+import { ComposeService } from '../services/composeService';
+import { NetworkService } from '../services/networkService';
+import { StorageService } from '../services/storageService';
 
 const program = new Command();
 
-const allowedSubvolumeOptions = new Set(['size', 'mode', 'uid', 'gid', 'quota']);
-const allowedMountOptions = new Set(['uid', 'gid', 'rw', 'ro', 'quota']);
-
-function buildOptionArgs(
-  options: Record<string, string> | undefined,
-  allowed: Set<string>
-): string[] {
-  const args: string[] = [];
-  if (!options) return args;
-  for (const [k, v] of Object.entries(options)) {
-    if (allowed.has(k)) {
-      args.push(`--${k}`, v);
-    } else {
-      console.warn(`Ignoring unsupported option ${k}`);
-    }
-  }
-  return args;
-}
+const proxmox = new ProxmoxClient();
+const composeService = new ComposeService();
+const networkService = new NetworkService(proxmox);
+const storageService = new StorageService(proxmox);
 
 program
   .name('proxmox-swarm')
@@ -69,7 +56,7 @@ function startDaemon() {
     }
     fs.unlinkSync(pidFile);
   }
-  const daemonPath = path.resolve(__dirname, 'daemon', 'index.js');
+  const daemonPath = path.resolve(__dirname, '..', 'core', 'daemon.js');
   const out = fs.openSync(logFile, 'a');
   const err = fs.openSync(logFile, 'a');
   const child = spawn(process.execPath, [daemonPath], {
@@ -133,11 +120,11 @@ program
   .command('deploy <compose>')
   .description('Deploy LXC containers defined in a compose file.')
   .action((compose: string) => {
-    const { services, volumes } = parseCompose(compose);
+    const { services, volumes } = composeService.parse(compose);
     const opts = program.opts();
     const auth = getAuth();
     if (opts.sdnNetwork && opts.createSdn) {
-      const netStatus = runProxmox('sdn', ['create', opts.sdnNetwork], auth);
+      const netStatus = proxmox.run('sdn', ['create', opts.sdnNetwork], auth);
       if (netStatus !== 0) {
         process.exit(netStatus);
       }
@@ -146,20 +133,18 @@ program
       if (volDef.external) {
         continue;
       }
-      const args = ['subvolume', 'create', volDef.subvolume];
-      args.push(...buildOptionArgs(volDef.options, allowedSubvolumeOptions));
-      const volStatus = runProxmox('cephfs', args, auth);
+      const volStatus = storageService.createSubvolume(auth, volDef.subvolume, volDef.options);
       if (volStatus !== 0) {
         process.exit(volStatus);
       }
     }
     for (const [name, cfg] of Object.entries(services)) {
-      const status = runProxmox('deploy', [name, cfg.image], auth);
+      const status = proxmox.run('deploy', [name, cfg.image], auth);
       if (status !== 0) {
         process.exit(status);
       }
       if (opts.sdnNetwork) {
-        const sdnStatus = attachToSDN(auth, name, opts.sdnNetwork, cfg.tags, cfg.vlan);
+        const sdnStatus = networkService.attachToSDN(auth, name, opts.sdnNetwork, cfg.tags, cfg.vlan);
         if (sdnStatus !== 0) {
           process.exit(sdnStatus);
         }
@@ -170,12 +155,14 @@ program
           console.warn(`Volume ${mount.volume} not defined in compose file`);
           continue;
         }
-        const mArgs = ['mount', name, mount.target, def.subvolume];
-        if (mount.mode) {
-          mArgs.push('--mode', mount.mode);
-        }
-        mArgs.push(...buildOptionArgs(def.options, allowedMountOptions));
-        const mStatus = runProxmox('cephfs', mArgs, auth);
+        const mStatus = storageService.mount(
+          auth,
+          name,
+          mount.target,
+          def.subvolume,
+          mount.mode,
+          def.options
+        );
         if (mStatus !== 0) {
           process.exit(mStatus);
         }
@@ -187,7 +174,7 @@ program
   .command('start <vmid>')
   .description('Start an existing VM.')
   .action((vmid: string) => {
-    const status = runProxmox('start', [vmid], getAuth());
+    const status = proxmox.run('start', [vmid], getAuth());
     process.exit(status);
   });
 
@@ -195,7 +182,7 @@ program
   .command('stop <vmid>')
   .description('Stop a running VM.')
   .action((vmid: string) => {
-    const status = runProxmox('stop', [vmid], getAuth());
+    const status = proxmox.run('stop', [vmid], getAuth());
     process.exit(status);
   });
 
@@ -205,3 +192,4 @@ daemonCmd.command('stop').action(stopDaemon);
 daemonCmd.command('status').action(statusDaemon);
 
 program.parse();
+

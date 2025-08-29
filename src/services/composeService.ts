@@ -29,75 +29,77 @@ export interface ComposeConfig {
   volumes: Record<string, VolumeDefinition>;
 }
 
-export function parseCompose(filePath: string): ComposeConfig {
-  let content: string;
-  try {
-    content = fs.readFileSync(filePath, 'utf8');
-  } catch (err) {
-    throw new Error(`Failed to read compose file at ${filePath}: ${(err as Error).message}`);
-  }
+export interface IComposeService {
+  parse(filePath: string): ComposeConfig;
+}
 
-  let data: any;
-  try {
-    data = yaml.load(content);
-  } catch (err) {
-    throw new Error(`Failed to parse YAML in ${filePath}: ${(err as Error).message}`);
-  }
-
-  if (typeof data !== 'object' || data === null || !('services' in data)) {
-    throw new Error('Compose file missing services definition');
-  }
-
-  const services = (data as any).services as Record<string, any>;
-  const volumeDefs = parseVolumes((data as any).volumes);
-  const result: Record<string, LXCServiceConfig> = {};
-
-  for (const [name, svc] of Object.entries(services)) {
-    const image: string = svc.image;
-    const ports: string[] = Array.isArray(svc.ports) ? svc.ports.map((p: any) => String(p)) : [];
-    const environment = parseEnvironment(svc.environment);
-    const replicasVal = svc.deploy?.replicas;
-    const replicas = replicasVal !== undefined && replicasVal !== null ? parseInt(String(replicasVal), 10) : 1;
-    const normalizedReplicas = Number.isNaN(replicas) ? 1 : replicas;
-    const constraints: string[] = Array.isArray(svc.deploy?.placement?.constraints)
-      ? svc.deploy.placement.constraints.map((c: any) => String(c))
-      : [];
-    const tags: string[] | undefined = Array.isArray(svc.tags)
-      ? svc.tags.map((t: any) => String(t))
-      : undefined;
-    const vlanVal = svc.vlan;
-    let vlan: number | undefined;
-    if (vlanVal !== undefined && vlanVal !== null) {
-      const parsedVlan = parseInt(String(vlanVal), 10);
-      if (
-        Number.isNaN(parsedVlan) ||
-        parsedVlan < 0 ||
-        parsedVlan > 4094
-      ) {
-        throw new Error(`Invalid VLAN ID for service ${name}: ${vlanVal}`);
-      }
-      vlan = parsedVlan;
+export class ComposeService implements IComposeService {
+  parse(filePath: string): ComposeConfig {
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf8');
+    } catch (err) {
+      throw new Error(`Failed to read compose file at ${filePath}: ${(err as Error).message}`);
     }
 
-    const volumes: VolumeMount[] = Array.isArray(svc.volumes)
-      ? svc.volumes
-          .map((v: any) => parseVolumeMount(v))
-          .filter((v: VolumeMount | null): v is VolumeMount => v !== null)
-      : [];
+    let data: any;
+    try {
+      data = yaml.load(content);
+    } catch (err) {
+      throw new Error(`Failed to parse YAML in ${filePath}: ${(err as Error).message}`);
+    }
 
-    result[name] = {
-      image,
-      ports,
-      environment,
-      replicas: normalizedReplicas,
-      constraints,
-      tags,
-      vlan,
-      volumes,
-    };
+    if (typeof data !== 'object' || data === null || !('services' in data)) {
+      throw new Error('Compose file missing services definition');
+    }
+
+    const services = (data as any).services as Record<string, any>;
+    const volumeDefs = parseVolumes((data as any).volumes);
+    const result: Record<string, LXCServiceConfig> = {};
+
+    for (const [name, svc] of Object.entries(services)) {
+      const image: string = svc.image;
+      const ports: string[] = Array.isArray(svc.ports) ? svc.ports.map((p: any) => String(p)) : [];
+      const environment = parseEnvironment(svc.environment);
+      const replicasVal = svc.deploy?.replicas;
+      const replicas = replicasVal !== undefined && replicasVal !== null ? parseInt(String(replicasVal), 10) : 1;
+      const normalizedReplicas = Number.isNaN(replicas) ? 1 : replicas;
+      const constraints: string[] = Array.isArray(svc.deploy?.placement?.constraints)
+        ? svc.deploy.placement.constraints.map((c: any) => String(c))
+        : [];
+      const tags: string[] | undefined = Array.isArray(svc.tags)
+        ? svc.tags.map((t: any) => String(t))
+        : undefined;
+      const vlanVal = svc.vlan;
+      let vlan: number | undefined;
+      if (vlanVal !== undefined && vlanVal !== null) {
+        const parsedVlan = parseInt(String(vlanVal), 10);
+        if (Number.isNaN(parsedVlan) || parsedVlan < 0 || parsedVlan > 4094) {
+          throw new Error(`Invalid VLAN ID for service ${name}: ${vlanVal}`);
+        }
+        vlan = parsedVlan;
+      }
+
+      const volumes: VolumeMount[] = Array.isArray(svc.volumes)
+        ? svc.volumes
+            .map((v: any) => parseVolumeMount(v))
+            .filter((v: VolumeMount | null): v is VolumeMount => v !== null)
+        : [];
+
+      result[name] = {
+        image,
+        ports,
+        environment,
+        replicas: normalizedReplicas,
+        constraints,
+        tags,
+        vlan,
+        volumes,
+      };
+    }
+
+    return { services: result, volumes: volumeDefs };
   }
-
-  return { services: result, volumes: volumeDefs };
 }
 
 function parseEnvironment(env: any): Record<string, string> {
