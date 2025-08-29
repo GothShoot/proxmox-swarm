@@ -1,10 +1,6 @@
 import http from 'http';
 import fs from 'fs';
-import path from 'path';
-
-const runtimeDir = path.resolve(__dirname, '../../runtime');
-const pidFile = path.join(runtimeDir, 'daemon.pid');
-const socketFile = path.join(runtimeDir, 'daemon.sock');
+import { ensureRuntimeDir, pidFile, socketFile } from '../runtime';
 
 function cleanup() {
   try { fs.unlinkSync(pidFile); } catch {}
@@ -12,9 +8,7 @@ function cleanup() {
   process.exit(0);
 }
 
-if (!fs.existsSync(runtimeDir)) {
-  fs.mkdirSync(runtimeDir, { recursive: true });
-}
+ensureRuntimeDir();
 
 if (fs.existsSync(socketFile)) {
   try { fs.unlinkSync(socketFile); } catch {}

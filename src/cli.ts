@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { ensureRuntimeDir, pidFile, logFile } from './runtime';
 import { runProxmox, ProxmoxAuth } from './proxmox';
 import { parseCompose } from './composeParser';
 import { attachToSDN } from './sdn';
@@ -45,18 +46,8 @@ function getAuth(): ProxmoxAuth {
   };
 }
 
-const runtimeDir = path.resolve(__dirname, '../runtime');
-const pidFile = path.join(runtimeDir, 'daemon.pid');
-const logFile = path.join(runtimeDir, 'daemon.log');
-
 function sleep(ms: number) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-function ensureRuntimeDir() {
-  if (!fs.existsSync(runtimeDir)) {
-    fs.mkdirSync(runtimeDir, { recursive: true });
-  }
 }
 
 function isRunning(pid: number): boolean {
