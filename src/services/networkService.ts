@@ -56,7 +56,7 @@ export class NetworkService implements INetworkService {
     vlan?: number
   ): number {
     const args = ['create', name];
-    if (zone) {
+    if (zone !== undefined) {
       args.push('--zone', zone);
     }
     if (vlan !== undefined) {
@@ -77,7 +77,7 @@ export class NetworkService implements INetworkService {
     acls?: string[]
   ): number {
     const args = ['iface', iface];
-    if (ip) {
+    if (ip !== undefined) {
       args.push('--ip', ip);
     }
     if (mtu !== undefined) {

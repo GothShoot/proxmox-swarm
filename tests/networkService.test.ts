@@ -41,6 +41,17 @@ describe('NetworkService', () => {
     );
   });
 
+  it('creates network with empty zone string', () => {
+    const sdn = vi.fn().mockReturnValue(0);
+    const svc = new NetworkService({ sdn } as any);
+    const auth = {};
+    svc.createNetwork(auth, 'net', '', 5);
+    expect(sdn).toHaveBeenCalledWith(
+      ['create', 'net', '--zone', '', '--vlan', '5'],
+      auth
+    );
+  });
+
   it('deletes network', () => {
     const sdn = vi.fn().mockReturnValue(0);
     const svc = new NetworkService({ sdn } as any);
@@ -56,6 +67,17 @@ describe('NetworkService', () => {
     svc.configureInterface(auth, 'eth0', '10.0.0.2/24', 1500, ['a', 'b']);
     expect(sdn).toHaveBeenCalledWith(
       ['iface', 'eth0', '--ip', '10.0.0.2/24', '--mtu', '1500', '--acl', 'a,b'],
+      auth
+    );
+  });
+
+  it('configures interface with empty ip string', () => {
+    const sdn = vi.fn().mockReturnValue(0);
+    const svc = new NetworkService({ sdn } as any);
+    const auth = {};
+    svc.configureInterface(auth, 'eth0', '');
+    expect(sdn).toHaveBeenCalledWith(
+      ['iface', 'eth0', '--ip', ''],
       auth
     );
   });
