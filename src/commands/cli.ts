@@ -3,17 +3,12 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { ensureRuntimeDir, pidFile, logFile } from '../core/runtime';
-import { ProxmoxAuth, ProxmoxClient } from '../adapters/proxmoxClient';
-import { ComposeService } from '../services/composeService';
-import { NetworkService } from '../services/networkService';
-import { StorageService } from '../services/storageService';
+import { ProxmoxAuth } from '../adapters/proxmoxClient';
+import { DaemonClient } from '../client/daemonClient';
 
 const program = new Command();
 
-const proxmox = new ProxmoxClient();
-const composeService = new ComposeService();
-const networkService = new NetworkService(proxmox);
-const storageService = new StorageService(proxmox);
+const client = new DaemonClient();
 
 program
   .name('proxmox-swarm')
@@ -119,71 +114,42 @@ function statusDaemon() {
 program
   .command('deploy <compose>')
   .description('Deploy LXC containers defined in a compose file.')
-  .action((compose: string) => {
-    const { services, volumes } = composeService.parse(compose);
-    const opts = program.opts();
-    const auth = getAuth();
-    if (opts.sdnNetwork && opts.createSdn) {
-      const netStatus = proxmox.run('sdn', ['create', opts.sdnNetwork], auth);
-      if (netStatus !== 0) {
-        process.exit(netStatus);
-      }
-    }
-    for (const volDef of Object.values(volumes)) {
-      if (volDef.external) {
-        continue;
-      }
-      const volStatus = storageService.createSubvolume(auth, volDef.subvolume, volDef.options);
-      if (volStatus !== 0) {
-        process.exit(volStatus);
-      }
-    }
-    for (const [name, cfg] of Object.entries(services)) {
-      const status = proxmox.run('deploy', [name, cfg.image], auth);
-      if (status !== 0) {
-        process.exit(status);
-      }
-      if (opts.sdnNetwork) {
-        const sdnStatus = networkService.attachToSDN(auth, name, opts.sdnNetwork, cfg.tags, cfg.vlan);
-        if (sdnStatus !== 0) {
-          process.exit(sdnStatus);
-        }
-      }
-      for (const mount of cfg.volumes) {
-        const def = volumes[mount.volume];
-        if (!def) {
-          console.warn(`Volume ${mount.volume} not defined in compose file`);
-          continue;
-        }
-        const mStatus = storageService.mount(
-          auth,
-          name,
-          mount.target,
-          def.subvolume,
-          mount.mode,
-          def.options
-        );
-        if (mStatus !== 0) {
-          process.exit(mStatus);
-        }
-      }
+  .action(async (compose: string) => {
+    try {
+      const opts = program.opts();
+      const auth = getAuth();
+      const result = await client.deploy(compose, auth, opts.sdnNetwork, opts.createSdn);
+      process.exit(result.status ?? 0);
+    } catch (e) {
+      console.error((e as Error).message);
+      process.exit(1);
     }
   });
 
 program
   .command('start <vmid>')
   .description('Start an existing VM.')
-  .action((vmid: string) => {
-    const status = proxmox.run('start', [vmid], getAuth());
-    process.exit(status);
+  .action(async (vmid: string) => {
+    try {
+      const result = await client.start(vmid, getAuth());
+      process.exit(result.status ?? 0);
+    } catch (e) {
+      console.error((e as Error).message);
+      process.exit(1);
+    }
   });
 
 program
   .command('stop <vmid>')
   .description('Stop a running VM.')
-  .action((vmid: string) => {
-    const status = proxmox.run('stop', [vmid], getAuth());
-    process.exit(status);
+  .action(async (vmid: string) => {
+    try {
+      const result = await client.stop(vmid, getAuth());
+      process.exit(result.status ?? 0);
+    } catch (e) {
+      console.error((e as Error).message);
+      process.exit(1);
+    }
   });
 
 const daemonCmd = program.command('daemon').description('Control swarm daemon');
@@ -191,5 +157,5 @@ daemonCmd.command('start').action(startDaemon);
 daemonCmd.command('stop').action(stopDaemon);
 daemonCmd.command('status').action(statusDaemon);
 
-program.parse();
+program.parseAsync();
 
