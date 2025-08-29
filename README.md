@@ -128,4 +128,10 @@ Volumes marked `external: true` are referenced but not created during deployment
 Only a limited set of safe CephFS options is passed to the underlying CLI; any
 unsupported keys are ignored.
 
+Supported subvolume options: `size`, `mode`, `uid`, `gid`, `quota`, and
+`compression`.
+
+Supported mount options: `uid`, `gid`, `rw`, `ro`, `quota`, `atime`, `noatime`,
+and `cache-size`.
+
 Additional subcommands can be added in the future using the extensible architecture in `src/cli.ts`.

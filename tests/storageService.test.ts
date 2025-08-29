@@ -6,20 +6,46 @@ describe('StorageService', () => {
     const run = vi.fn().mockReturnValue(0);
     const svc = new StorageService({ run } as any);
     const auth = {};
-    const status = svc.createSubvolume(auth, 'subvol', { size: '1G', invalid: 'x' } as any);
+    const status = svc.createSubvolume(auth, 'subvol', {
+      size: '1G',
+      compression: 'lz4',
+      invalid: 'x',
+    } as any);
     expect(status).toBe(0);
-    expect(run).toHaveBeenCalledWith('cephfs', ['subvolume', 'create', 'subvol', '--size', '1G'], auth);
+    expect(run).toHaveBeenCalledWith(
+      'cephfs',
+      ['subvolume', 'create', 'subvol', '--size', '1G', '--compression', 'lz4'],
+      auth
+    );
   });
 
   it('mounts with mode and options', () => {
     const run = vi.fn().mockReturnValue(0);
     const svc = new StorageService({ run } as any);
     const auth = {};
-    const status = svc.mount(auth, '101', '/data', 'subvol', 'rw', { uid: '1000', bad: 'x' } as any);
+    const status = svc.mount(
+      auth,
+      '101',
+      '/data',
+      'subvol',
+      'rw',
+      { uid: '1000', noatime: '1', bad: 'x' } as any
+    );
     expect(status).toBe(0);
     expect(run).toHaveBeenCalledWith(
       'cephfs',
-      ['mount', '101', '/data', 'subvol', '--mode', 'rw', '--uid', '1000'],
+      [
+        'mount',
+        '101',
+        '/data',
+        'subvol',
+        '--mode',
+        'rw',
+        '--uid',
+        '1000',
+        '--noatime',
+        '1',
+      ],
       auth
     );
   });
