@@ -1,5 +1,22 @@
 import { IProxmoxClient, ProxmoxAuth } from '../adapters/proxmoxClient';
 
+const TAG_REGEX = /^[a-zA-Z0-9_-]+$/;
+
+function validateTagsAndVlan(tags?: string[], vlan?: number): void {
+  if (tags) {
+    for (const tag of tags) {
+      if (!TAG_REGEX.test(tag)) {
+        throw new Error(`Invalid tag format: ${tag}`);
+      }
+    }
+  }
+  if (vlan !== undefined) {
+    if (!Number.isInteger(vlan) || vlan < 1 || vlan > 4094) {
+      throw new Error('VLAN must be an integer between 1 and 4094');
+    }
+  }
+}
+
 export interface INetworkService {
   attachToSDN(
     auth: ProxmoxAuth,
@@ -35,6 +52,7 @@ export class NetworkService implements INetworkService {
     tags?: string[],
     vlan?: number
   ): number {
+    validateTagsAndVlan(tags, vlan);
     const args = ['attach', vmid, network];
     if (tags && tags.length) {
       args.push('--tags', tags.join(','));
@@ -55,6 +73,7 @@ export class NetworkService implements INetworkService {
     zone?: string,
     vlan?: number
   ): number {
+    validateTagsAndVlan(undefined, vlan);
     const args = ['create', name];
     if (zone !== undefined) {
       args.push('--zone', zone);

@@ -117,7 +117,7 @@ Available subcommands:
 When `--sdn-network` is specified, newly created containers are attached to the
 given overlay network using the Proxmox SDN API. Network tags and VLAN IDs can
 be defined per service in the compose file via `tags` and `vlan` fields. VLAN IDs
-must be integers between 0 and 4094.
+must be integers between 1 and 4094.
 
 CephFS subvolumes can be defined in the compose file's `volumes` section. These
 subvolumes are created (if necessary) during deployment and mounted into each

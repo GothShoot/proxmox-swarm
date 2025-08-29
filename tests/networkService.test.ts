@@ -52,6 +52,26 @@ describe('NetworkService', () => {
     );
   });
 
+  it('throws error for invalid tag format', () => {
+    const sdn = vi.fn();
+    const svc = new NetworkService({ sdn } as any);
+    const auth = {};
+    expect(() => svc.attachToSDN(auth, '103', 'net', ['bad tag'])).toThrow(
+      /Invalid tag format/
+    );
+    expect(sdn).not.toHaveBeenCalled();
+  });
+
+  it('throws error for vlan out of range', () => {
+    const sdn = vi.fn();
+    const svc = new NetworkService({ sdn } as any);
+    const auth = {};
+    expect(() => svc.createNetwork(auth, 'net', 'zone', 5000)).toThrow(
+      /VLAN must be an integer between 1 and 4094/
+    );
+    expect(sdn).not.toHaveBeenCalled();
+  });
+
   it('deletes network', () => {
     const sdn = vi.fn().mockReturnValue(0);
     const svc = new NetworkService({ sdn } as any);
