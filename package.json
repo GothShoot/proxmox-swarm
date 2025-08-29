@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/commands/cli.js",
-    "build:cli": "npm run build && pkg --targets node18-linux-x64 dist/commands/cli.js --output dist/proxmox-swarm"
+    "build:cli": "npm run build && pkg --targets node18-linux-x64 dist/commands/cli.js --output dist/proxmox-swarm",
     "test": "vitest run"
   },
   "dependencies": {
@@ -19,8 +19,9 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
-    "vitest": "^3.2.4"
-    "pkg": "^5.8.1",
+    "vitest": "^3.2.4",
+    "esbuild": "^0.25.0",
+    "postject": "1.0.0-alpha.6",
     "typescript": "^5.4.0"
   }
 }
