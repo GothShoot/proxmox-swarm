@@ -26,6 +26,18 @@ const requestDuration = new Histogram({
   labelNames: ['route'],
 });
 
+const KNOWN_ROUTES = new Set([
+  'GET /status',
+  'GET /metrics',
+  'POST /compose/parse',
+  'POST /deploy',
+  'POST /start',
+  'POST /stop',
+  'POST /network/attach',
+  'POST /storage/subvolume',
+  'POST /storage/mount',
+]);
+
 function cleanup() {
   try { fs.unlinkSync(pidFile); } catch {}
   try { fs.unlinkSync(socketFile); } catch {}
@@ -39,7 +51,9 @@ if (fs.existsSync(socketFile)) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const route = req.url || 'unknown';
+  const path = req.url?.split('?')[0] || '';
+  const key = `${req.method} ${path}`;
+  const route = KNOWN_ROUTES.has(key) ? key : 'unknown';
   requestCounter.inc({ route });
   const endTimer = requestDuration.startTimer({ route });
   res.on('finish', endTimer);
@@ -56,8 +70,9 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': register.contentType });
       res.end(metrics);
     } catch (e) {
+      logger.error(e);
       res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end((e as Error).message);
+      res.end('Internal server error');
     }
     return;
   }
@@ -72,8 +87,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -154,8 +170,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 0 }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -171,8 +188,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -188,8 +206,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -205,8 +224,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -222,8 +242,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -239,8 +260,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;

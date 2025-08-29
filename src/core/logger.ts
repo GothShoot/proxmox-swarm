@@ -5,7 +5,7 @@ import { logFile } from './runtime';
 export function createLogger(isDaemon = false) {
   const level = process.env.LOG_LEVEL || 'info';
   if (isDaemon) {
-    const destination = process.env.SWARM_LOG_FILE || logFile;
+    const destination = logFile;
     const size = process.env.SWARM_LOG_SIZE || '10m';
     const frequency = process.env.SWARM_LOG_INTERVAL || '1d';
     const transport = pinoRoll({
