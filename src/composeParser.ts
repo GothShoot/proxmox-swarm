@@ -1,6 +1,18 @@
 import fs from 'fs';
 import yaml from 'js-yaml';
 
+export interface VolumeDefinition {
+  subvolume: string;
+  options?: Record<string, string>;
+  external?: boolean;
+}
+
+export interface VolumeMount {
+  volume: string;
+  target: string;
+  mode?: string;
+}
+
 export interface LXCServiceConfig {
   image: string;
   ports: string[];
@@ -9,9 +21,15 @@ export interface LXCServiceConfig {
   constraints: string[];
   tags?: string[];
   vlan?: number;
+  volumes: VolumeMount[];
 }
 
-export function parseCompose(filePath: string): Record<string, LXCServiceConfig> {
+export interface ComposeConfig {
+  services: Record<string, LXCServiceConfig>;
+  volumes: Record<string, VolumeDefinition>;
+}
+
+export function parseCompose(filePath: string): ComposeConfig {
   let content: string;
   try {
     content = fs.readFileSync(filePath, 'utf8');
@@ -31,6 +49,7 @@ export function parseCompose(filePath: string): Record<string, LXCServiceConfig>
   }
 
   const services = (data as any).services as Record<string, any>;
+  const volumeDefs = parseVolumes((data as any).volumes);
   const result: Record<string, LXCServiceConfig> = {};
 
   for (const [name, svc] of Object.entries(services)) {
@@ -60,6 +79,12 @@ export function parseCompose(filePath: string): Record<string, LXCServiceConfig>
       vlan = parsedVlan;
     }
 
+    const volumes: VolumeMount[] = Array.isArray(svc.volumes)
+      ? svc.volumes
+          .map((v: any) => parseVolumeMount(v))
+          .filter((v: VolumeMount | null): v is VolumeMount => v !== null)
+      : [];
+
     result[name] = {
       image,
       ports,
@@ -68,10 +93,11 @@ export function parseCompose(filePath: string): Record<string, LXCServiceConfig>
       constraints,
       tags,
       vlan,
+      volumes,
     };
   }
 
-  return result;
+  return { services: result, volumes: volumeDefs };
 }
 
 function parseEnvironment(env: any): Record<string, string> {
@@ -102,6 +128,52 @@ function parseEnvironment(env: any): Record<string, string> {
     }
   }
 
+  return result;
+}
+
+function parseVolumeMount(entry: any): VolumeMount | null {
+  if (typeof entry === 'string') {
+    const parts = entry.split(':');
+    if (parts.length < 2) {
+      console.warn(`Ignoring malformed volume entry: ${entry}`);
+      return null;
+    }
+    const [volume, target, mode] = parts;
+    return { volume, target, mode };
+  } else if (typeof entry === 'object' && entry !== null) {
+    const volume = String(entry.source ?? entry.volume ?? '');
+    const target = String(entry.target ?? entry.destination ?? '');
+    if (!volume || !target) {
+      console.warn(`Ignoring malformed volume entry: ${JSON.stringify(entry)}`);
+      return null;
+    }
+    const mode = entry.mode !== undefined ? String(entry.mode) : undefined;
+    return { volume, target, mode };
+  }
+  console.warn(`Ignoring malformed volume entry: ${JSON.stringify(entry)}`);
+  return null;
+}
+
+function parseVolumes(vols: any): Record<string, VolumeDefinition> {
+  const result: Record<string, VolumeDefinition> = {};
+  if (vols && typeof vols === 'object') {
+    for (const [name, cfg] of Object.entries(vols as Record<string, any>)) {
+      if (typeof cfg === 'string') {
+        result[name] = { subvolume: cfg };
+      } else if (cfg && typeof cfg === 'object') {
+        const obj = cfg as Record<string, any>;
+        const external = Boolean(obj.external);
+        const subvolume = obj.subvolume ?? (typeof obj.external === 'object' && obj.external.name ? obj.external.name : name);
+        const options: Record<string, string> | undefined =
+          obj.options && typeof obj.options === 'object'
+            ? Object.fromEntries(
+                Object.entries(obj.options).map(([k, v]: [string, any]) => [k, String(v)])
+              )
+            : undefined;
+        result[name] = { subvolume, options, external };
+      }
+    }
+  }
   return result;
 }
 
