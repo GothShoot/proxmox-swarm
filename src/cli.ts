@@ -1,4 +1,8 @@
 import { Command } from 'commander';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { ensureRuntimeDir, pidFile, logFile } from './runtime';
 import { runProxmox, ProxmoxAuth } from './proxmox';
 import { parseCompose } from './composeParser';
 import { attachToSDN } from './sdn';
@@ -40,6 +44,89 @@ function getAuth(): ProxmoxAuth {
     user: opts.user,
     password: opts.password,
   };
+}
+
+function sleep(ms: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function startDaemon() {
+  ensureRuntimeDir();
+  if (fs.existsSync(pidFile)) {
+    const existing = Number(fs.readFileSync(pidFile, 'utf8'));
+    if (isRunning(existing)) {
+      console.log(`Daemon already running (PID ${existing})`);
+      return;
+    }
+    fs.unlinkSync(pidFile);
+  }
+  const daemonPath = path.resolve(__dirname, 'daemon', 'index.js');
+  const out = fs.openSync(logFile, 'a');
+  const err = fs.openSync(logFile, 'a');
+  const child = spawn(process.execPath, [daemonPath], {
+    detached: true,
+    stdio: ['ignore', out, err],
+  });
+  child.unref();
+  const start = Date.now();
+  const timeout = 5000;
+  while (!fs.existsSync(pidFile) && Date.now() - start < timeout) {
+    sleep(100);
+  }
+  if (fs.existsSync(pidFile)) {
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    console.log(`Daemon started (PID ${pid})`);
+  } else {
+    console.error('Failed to start daemon');
+  }
+}
+
+function stopDaemon() {
+  if (!fs.existsSync(pidFile)) {
+    console.log('Daemon not running');
+    return;
+  }
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  if (!isRunning(pid)) {
+    console.log('Daemon not running');
+    fs.unlinkSync(pidFile);
+    return;
+  }
+  process.kill(pid);
+  const start = Date.now();
+  const timeout = 5000;
+  while (isRunning(pid) && Date.now() - start < timeout) {
+    sleep(100);
+  }
+  if (isRunning(pid)) {
+    console.error('Failed to stop daemon');
+    return;
+  }
+  fs.unlinkSync(pidFile);
+  console.log('Daemon stopped');
+}
+
+function statusDaemon() {
+  if (!fs.existsSync(pidFile)) {
+    console.log('Daemon not running');
+    return;
+  }
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  if (isRunning(pid)) {
+    console.log(`Daemon running (PID ${pid})`);
+  } else {
+    console.log('Daemon not running');
+    fs.unlinkSync(pidFile);
+  }
 }
 
 program
@@ -111,5 +198,10 @@ program
     const status = runProxmox('stop', [vmid], getAuth());
     process.exit(status);
   });
+
+const daemonCmd = program.command('daemon').description('Control swarm daemon');
+daemonCmd.command('start').action(startDaemon);
+daemonCmd.command('stop').action(stopDaemon);
+daemonCmd.command('status').action(statusDaemon);
 
 program.parse();
