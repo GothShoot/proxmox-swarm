@@ -6,12 +6,17 @@ export interface ProxmoxAuth {
   password?: string;
 }
 
+export interface ProxmoxRunOptions {
+  ports?: string[];
+  environment?: Record<string, string>;
+}
+
 export interface IProxmoxClient {
-  run(cmd: string, args: string[], auth: ProxmoxAuth): number;
+  run(cmd: string, args: string[], auth: ProxmoxAuth, options?: ProxmoxRunOptions): number;
 }
 
 export class ProxmoxClient implements IProxmoxClient {
-  run(cmd: string, args: string[], auth: ProxmoxAuth): number {
+  run(cmd: string, args: string[], auth: ProxmoxAuth, options: ProxmoxRunOptions = {}): number {
     const env = {
       ...process.env,
       PROXMOX_HOST: auth.host,
@@ -19,7 +24,19 @@ export class ProxmoxClient implements IProxmoxClient {
       PROXMOX_PASSWORD: auth.password,
     } as NodeJS.ProcessEnv;
 
-    const result = spawnSync('proxmox', [cmd, ...args], {
+    const finalArgs = [cmd, ...args];
+    if (options.ports) {
+      for (const port of options.ports) {
+        finalArgs.push('-p', port);
+      }
+    }
+    if (options.environment) {
+      for (const [key, value] of Object.entries(options.environment)) {
+        finalArgs.push('-e', `${key}=${value}`);
+      }
+    }
+
+    const result = spawnSync('proxmox', finalArgs, {
       stdio: 'inherit',
       env,
     });

@@ -124,48 +124,54 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        for (const [name, cfg] of Object.entries(services)) {
-          const status = proxmox.run('deploy', [name, cfg.image], auth ?? {});
-          if (status !== 0) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ status }));
-            return;
-          }
-          if (sdnNetwork) {
-            const sdnStatus = networkService.attachToSDN(
-              auth ?? {},
-              name,
-              sdnNetwork,
-              cfg.tags,
-              cfg.vlan
-            );
-            if (sdnStatus !== 0) {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ status: sdnStatus }));
-              return;
+          for (const [name, cfg] of Object.entries(services)) {
+            for (let i = 0; i < cfg.replicas; i++) {
+              const instance = cfg.replicas > 1 ? `${name}-${i + 1}` : name;
+              const status = proxmox.run('deploy', [instance, cfg.image], auth ?? {}, {
+                ports: cfg.ports,
+                environment: cfg.environment,
+              });
+              if (status !== 0) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status }));
+                return;
+              }
+              if (sdnNetwork) {
+                const sdnStatus = networkService.attachToSDN(
+                  auth ?? {},
+                  instance,
+                  sdnNetwork,
+                  cfg.tags,
+                  cfg.vlan
+                );
+                if (sdnStatus !== 0) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ status: sdnStatus }));
+                  return;
+                }
+              }
+              for (const mount of cfg.volumes) {
+                const def = volumes[mount.volume];
+                if (!def) {
+                  logger.warn(`Volume ${mount.volume} not defined in compose file`);
+                  continue;
+                }
+                const mStatus = storageService.mount(
+                  auth ?? {},
+                  instance,
+                  mount.target,
+                  def.subvolume,
+                  mount.mode,
+                  def.options
+                );
+                if (mStatus !== 0) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ status: mStatus }));
+                  return;
+                }
+              }
             }
           }
-          for (const mount of cfg.volumes) {
-            const def = volumes[mount.volume];
-            if (!def) {
-              logger.warn(`Volume ${mount.volume} not defined in compose file`);
-              continue;
-            }
-            const mStatus = storageService.mount(
-              auth ?? {},
-              name,
-              mount.target,
-              def.subvolume,
-              mount.mode,
-              def.options
-            );
-            if (mStatus !== 0) {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ status: mStatus }));
-              return;
-            }
-          }
-        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 0 }));
@@ -284,4 +290,6 @@ server.on('error', (err) => {
 
 process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
+
+export { server };
 

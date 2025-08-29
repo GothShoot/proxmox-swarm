@@ -11,11 +11,12 @@ describe('ProxmoxClient', () => {
   it('runs proxmox with provided auth', () => {
     const client = new ProxmoxClient();
     const auth = { host: 'h', user: 'u', password: 'p' };
-    const status = client.run('cmd', ['arg'], auth);
+    const opts = { ports: ['80:80'], environment: { NODE_ENV: 'prod' } };
+    const status = client.run('cmd', ['arg'], auth, opts);
     expect(status).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
       'proxmox',
-      ['cmd', 'arg'],
+      ['cmd', 'arg', '-p', '80:80', '-e', 'NODE_ENV=prod'],
       expect.objectContaining({
         stdio: 'inherit',
         env: expect.objectContaining({
