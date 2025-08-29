@@ -50,9 +50,10 @@ export class DaemonClient {
                 reject(e);
               }
             } else if (res.statusCode && res.statusCode >= 500 && n < this.retries) {
+              const delay = Math.pow(2, n - 1) * 500;
               setTimeout(() => {
                 attempt(n + 1).then(resolve).catch(reject);
-              }, 500 * n);
+              }, delay);
             } else {
               reject(new Error(resBody || `HTTP ${res.statusCode}`));
             }
@@ -60,9 +61,10 @@ export class DaemonClient {
         });
         req.on('error', (err) => {
           if (n < this.retries) {
+            const delay = Math.pow(2, n - 1) * 500;
             setTimeout(() => {
               attempt(n + 1).then(resolve).catch(reject);
-            }, 500 * n);
+            }, delay);
           } else {
             reject(err);
           }

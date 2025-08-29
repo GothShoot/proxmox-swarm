@@ -47,6 +47,122 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && req.url === '/deploy') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      try {
+        const { compose, auth, sdnNetwork, createSdn } = JSON.parse(body);
+        const { services, volumes } = composeService.parse(compose);
+
+        if (sdnNetwork && createSdn) {
+          const netStatus = proxmox.run('sdn', ['create', sdnNetwork], auth ?? {});
+          if (netStatus !== 0) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: netStatus }));
+            return;
+          }
+        }
+
+        for (const volDef of Object.values(volumes)) {
+          if (volDef.external) {
+            continue;
+          }
+          const volStatus = storageService.createSubvolume(auth ?? {}, volDef.subvolume, volDef.options);
+          if (volStatus !== 0) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: volStatus }));
+            return;
+          }
+        }
+
+        for (const [name, cfg] of Object.entries(services)) {
+          const status = proxmox.run('deploy', [name, cfg.image], auth ?? {});
+          if (status !== 0) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status }));
+            return;
+          }
+          if (sdnNetwork) {
+            const sdnStatus = networkService.attachToSDN(
+              auth ?? {},
+              name,
+              sdnNetwork,
+              cfg.tags,
+              cfg.vlan
+            );
+            if (sdnStatus !== 0) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ status: sdnStatus }));
+              return;
+            }
+          }
+          for (const mount of cfg.volumes) {
+            const def = volumes[mount.volume];
+            if (!def) {
+              console.warn(`Volume ${mount.volume} not defined in compose file`);
+              continue;
+            }
+            const mStatus = storageService.mount(
+              auth ?? {},
+              name,
+              mount.target,
+              def.subvolume,
+              mount.mode,
+              def.options
+            );
+            if (mStatus !== 0) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ status: mStatus }));
+              return;
+            }
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 0 }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: (e as Error).message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/start') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      try {
+        const { vmid, auth } = JSON.parse(body);
+        const status = proxmox.run('start', [vmid], auth ?? {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: (e as Error).message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/stop') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      try {
+        const { vmid, auth } = JSON.parse(body);
+        const status = proxmox.run('stop', [vmid], auth ?? {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: (e as Error).message }));
+      }
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/network/attach') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
