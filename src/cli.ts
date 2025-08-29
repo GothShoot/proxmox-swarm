@@ -1,5 +1,7 @@
 import { Command } from 'commander';
-import { spawnSync } from 'child_process';
+import { runProxmox, ProxmoxAuth } from './proxmox';
+import { parseCompose } from './composeParser';
+import { attachToSDN } from './sdn';
 
 const program = new Command();
 
@@ -8,49 +10,60 @@ program
   .description('Proxmox CLI wrapper')
   .option('--host <host>', 'Proxmox host')
   .option('--user <user>', 'Proxmox user')
-  .option('--password <password>', 'Proxmox password');
+  .option('--password <password>', 'Proxmox password')
+  .option('--sdn-network <network>', 'SDN overlay network to attach LXCs')
+  .option('--create-sdn', 'Create SDN network if missing');
 
-function runProxmox(cmd: string, args: string[]): void {
+function getAuth(): ProxmoxAuth {
   const opts = program.opts();
-  const env = {
-    ...process.env,
-    PROXMOX_HOST: opts.host,
-    PROXMOX_USER: opts.user,
-    PROXMOX_PASSWORD: opts.password,
-  } as NodeJS.ProcessEnv;
-
-  const result = spawnSync('proxmox', [cmd, ...args], {
-    stdio: 'inherit',
-    env,
-  });
-
-  if (result.error) {
-    console.error(result.error.message);
-    process.exit(result.status ?? 1);
-  }
-
-  process.exit(result.status ?? 0);
+  return {
+    host: opts.host,
+    user: opts.user,
+    password: opts.password,
+  };
 }
 
 program
-  .command('deploy')
-  .description('Deploy a new VM (placeholder).')
-  .action(() => {
-    runProxmox('deploy', []);
+  .command('deploy <compose>')
+  .description('Deploy LXC containers defined in a compose file.')
+  .action((compose: string) => {
+    const services = parseCompose(compose);
+    const opts = program.opts();
+    const auth = getAuth();
+    if (opts.sdnNetwork && opts.createSdn) {
+      const netStatus = runProxmox('sdn', ['create', opts.sdnNetwork], auth);
+      if (netStatus !== 0) {
+        process.exit(netStatus);
+      }
+    }
+    for (const [name, cfg] of Object.entries(services)) {
+      const status = runProxmox('deploy', [name, cfg.image], auth);
+      if (status !== 0) {
+        process.exit(status);
+      }
+      if (opts.sdnNetwork) {
+        const sdnStatus = attachToSDN(auth, name, opts.sdnNetwork, cfg.tags, cfg.vlan);
+        if (sdnStatus !== 0) {
+          process.exit(sdnStatus);
+        }
+      }
+    }
   });
 
 program
   .command('start <vmid>')
   .description('Start an existing VM.')
   .action((vmid: string) => {
-    runProxmox('start', [vmid]);
+    const status = runProxmox('start', [vmid], getAuth());
+    process.exit(status);
   });
 
 program
   .command('stop <vmid>')
   .description('Stop a running VM.')
   .action((vmid: string) => {
-    runProxmox('stop', [vmid]);
+    const status = runProxmox('stop', [vmid], getAuth());
+    process.exit(status);
   });
 
 program.parse();
