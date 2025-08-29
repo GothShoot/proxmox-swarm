@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { watch } from 'fs/promises';
 import path from 'path';
 import { ensureRuntimeDir, pidFile } from '../core/runtime';
 import { ProxmoxAuth } from '../adapters/proxmoxClient';
@@ -30,10 +31,6 @@ function getAuth(): ProxmoxAuth {
   };
 }
 
-function sleep(ms: number) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
 function isRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -43,15 +40,72 @@ function isRunning(pid: number): boolean {
   }
 }
 
-function startDaemon() {
+async function fileExists(file: string): Promise<boolean> {
+  try {
+    await fs.promises.access(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForCreation(file: string, timeout: number): Promise<boolean> {
+  if (await fileExists(file)) {
+    return true;
+  }
+  const dir = path.dirname(file);
+  const target = path.basename(file);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeout);
+  try {
+    for await (const event of watch(dir, { signal: ac.signal })) {
+      if (event.filename === target && (await fileExists(file))) {
+        clearTimeout(timer);
+        return true;
+      }
+    }
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      return false;
+    }
+    throw e;
+  }
+  return false;
+}
+
+async function waitForRemoval(file: string, timeout: number): Promise<boolean> {
+  if (!(await fileExists(file))) {
+    return true;
+  }
+  const dir = path.dirname(file);
+  const target = path.basename(file);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeout);
+  try {
+    for await (const event of watch(dir, { signal: ac.signal })) {
+      if (event.filename === target && !(await fileExists(file))) {
+        clearTimeout(timer);
+        return true;
+      }
+    }
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      return false;
+    }
+    throw e;
+  }
+  return false;
+}
+
+export async function startDaemon() {
   ensureRuntimeDir();
-  if (fs.existsSync(pidFile)) {
-    const existing = Number(fs.readFileSync(pidFile, 'utf8'));
+  if (await fileExists(pidFile)) {
+    const existing = Number(await fs.promises.readFile(pidFile, 'utf8'));
     if (isRunning(existing)) {
       logger.info(`Daemon already running (PID ${existing})`);
       return;
     }
-    fs.unlinkSync(pidFile);
+    await fs.promises.unlink(pidFile);
   }
   const daemonPath = path.resolve(__dirname, '..', 'core', 'daemon.js');
   const child = spawn(process.execPath, [daemonPath], {
@@ -59,41 +113,32 @@ function startDaemon() {
     stdio: 'ignore',
   });
   child.unref();
-  const start = Date.now();
-  const timeout = 5000;
-  while (!fs.existsSync(pidFile) && Date.now() - start < timeout) {
-    sleep(100);
-  }
-  if (fs.existsSync(pidFile)) {
-    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  const created = await waitForCreation(pidFile, 5000);
+  if (created) {
+    const pid = Number(await fs.promises.readFile(pidFile, 'utf8'));
     logger.info(`Daemon started (PID ${pid})`);
   } else {
     logger.error('Failed to start daemon');
   }
 }
 
-function stopDaemon() {
-  if (!fs.existsSync(pidFile)) {
+export async function stopDaemon() {
+  if (!(await fileExists(pidFile))) {
     logger.info('Daemon not running');
     return;
   }
-  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  const pid = Number(await fs.promises.readFile(pidFile, 'utf8'));
   if (!isRunning(pid)) {
     logger.info('Daemon not running');
-    fs.unlinkSync(pidFile);
+    await fs.promises.unlink(pidFile);
     return;
   }
   process.kill(pid);
-  const start = Date.now();
-  const timeout = 5000;
-  while (isRunning(pid) && Date.now() - start < timeout) {
-    sleep(100);
-  }
-  if (isRunning(pid)) {
+  const removed = await waitForRemoval(pidFile, 5000);
+  if (!removed) {
     logger.error('Failed to stop daemon');
     return;
   }
-  fs.unlinkSync(pidFile);
   logger.info('Daemon stopped');
 }
 
@@ -157,8 +202,10 @@ daemonCmd.command('start').action(startDaemon);
 daemonCmd.command('stop').action(stopDaemon);
 daemonCmd.command('status').action(statusDaemon);
 
-program.parseAsync().catch((err) => {
-  logger.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  program.parseAsync().catch((err) => {
+    logger.error(err);
+    process.exit(1);
+  });
+}
 
