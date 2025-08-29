@@ -5,6 +5,25 @@ import { attachToSDN } from './sdn';
 
 const program = new Command();
 
+const allowedSubvolumeOptions = new Set(['size', 'mode', 'uid', 'gid', 'quota']);
+const allowedMountOptions = new Set(['uid', 'gid', 'rw', 'ro', 'quota']);
+
+function buildOptionArgs(
+  options: Record<string, string> | undefined,
+  allowed: Set<string>
+): string[] {
+  const args: string[] = [];
+  if (!options) return args;
+  for (const [k, v] of Object.entries(options)) {
+    if (allowed.has(k)) {
+      args.push(`--${k}`, v);
+    } else {
+      console.warn(`Ignoring unsupported option ${k}`);
+    }
+  }
+  return args;
+}
+
 program
   .name('proxmox-swarm')
   .description('Proxmox CLI wrapper')
@@ -36,13 +55,12 @@ program
         process.exit(netStatus);
       }
     }
-    for (const [volName, volDef] of Object.entries(volumes)) {
-      const args = ['subvolume', 'create', volDef.subvolume];
-      if (volDef.options) {
-        for (const [k, v] of Object.entries(volDef.options)) {
-          args.push(`--${k}`, v);
-        }
+    for (const volDef of Object.values(volumes)) {
+      if (volDef.external) {
+        continue;
       }
+      const args = ['subvolume', 'create', volDef.subvolume];
+      args.push(...buildOptionArgs(volDef.options, allowedSubvolumeOptions));
       const volStatus = runProxmox('cephfs', args, auth);
       if (volStatus !== 0) {
         process.exit(volStatus);
@@ -69,11 +87,7 @@ program
         if (mount.mode) {
           mArgs.push('--mode', mount.mode);
         }
-        if (def.options) {
-          for (const [k, v] of Object.entries(def.options)) {
-            mArgs.push(`--${k}`, v);
-          }
-        }
+        mArgs.push(...buildOptionArgs(def.options, allowedMountOptions));
         const mStatus = runProxmox('cephfs', mArgs, auth);
         if (mStatus !== 0) {
           process.exit(mStatus);

@@ -39,5 +39,8 @@ CephFS subvolumes can be defined in the compose file's `volumes` section. These
 subvolumes are created (if necessary) during deployment and mounted into each
 container based on the `volumes` lists of individual services. Mount options such
 as read/write mode or quotas can be specified under the volume's `options`.
+Volumes marked `external: true` are referenced but not created during deployment.
+Only a limited set of safe CephFS options is passed to the underlying CLI; any
+unsupported keys are ignored.
 
 Additional subcommands can be added in the future using the extensible architecture in `src/cli.ts`.

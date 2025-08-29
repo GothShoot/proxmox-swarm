@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 export interface VolumeDefinition {
   subvolume: string;
   options?: Record<string, string>;
+  external?: boolean;
 }
 
 export interface VolumeMount {
@@ -79,7 +80,9 @@ export function parseCompose(filePath: string): ComposeConfig {
     }
 
     const volumes: VolumeMount[] = Array.isArray(svc.volumes)
-      ? svc.volumes.map((v: any) => parseVolumeMount(v)).filter(Boolean) as VolumeMount[]
+      ? svc.volumes
+          .map((v: any) => parseVolumeMount(v))
+          .filter((v: VolumeMount | null): v is VolumeMount => v !== null)
       : [];
 
     result[name] = {
@@ -159,13 +162,15 @@ function parseVolumes(vols: any): Record<string, VolumeDefinition> {
         result[name] = { subvolume: cfg };
       } else if (cfg && typeof cfg === 'object') {
         const obj = cfg as Record<string, any>;
-        const subvolume = obj.subvolume ?? name;
-        const options: Record<string, string> | undefined = obj.options && typeof obj.options === 'object'
-          ? Object.fromEntries(
-              Object.entries(obj.options).map(([k, v]) => [k, String(v)])
-            )
-          : undefined;
-        result[name] = { subvolume, options };
+        const external = Boolean(obj.external);
+        const subvolume = obj.subvolume ?? (typeof obj.external === 'object' && obj.external.name ? obj.external.name : name);
+        const options: Record<string, string> | undefined =
+          obj.options && typeof obj.options === 'object'
+            ? Object.fromEntries(
+                Object.entries(obj.options).map(([k, v]: [string, any]) => [k, String(v)])
+              )
+            : undefined;
+        result[name] = { subvolume, options, external };
       }
     }
   }
