@@ -45,7 +45,7 @@ Installation et déploiement :
 ```bash
 npm install
 npm run build
-node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
+ node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
 ```
 
 Pour générer un binaire autonome (télécharge automatiquement le runtime Node.js natif lors de la première exécution) :
@@ -58,8 +58,8 @@ npm run build:cli
 Commandes supplémentaires :
 
 ```bash
-node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> start <vmid>
-node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> stop <vmid>
+ node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> start <vmid>
+ node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> stop <vmid>
 ```
 
 ## Limitations
@@ -105,7 +105,7 @@ The executable `proxmox-swarm` will be created under `dist/`.
 Run the command-line interface:
 
 ```bash
-node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> [--sdn-network <NETWORK> --create-sdn] <subcommand>
+ node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> [--sdn-network <NETWORK> --create-sdn] <subcommand>
 ```
 
 Available subcommands:
