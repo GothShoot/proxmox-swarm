@@ -2,6 +2,8 @@
 
 A simple TypeScript CLI app to manage Proxmox LXC like a Docker Swarm using the Proxmox CLI.
 
+/!\ WARNING : MVP is hardely vibe-coded for rapid prototyping, must contain some breaking changes and errors /!\
+
 ## Prérequis
 
 - Proxmox VE installé et accessible via la CLI `pve`.
