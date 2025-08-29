@@ -49,19 +49,31 @@ async function fileExists(file: string): Promise<boolean> {
   }
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function waitForCreation(file: string, timeout: number): Promise<boolean> {
-  if (await fileExists(file)) {
-    return true;
-  }
   const dir = path.dirname(file);
   const target = path.basename(file);
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeout);
+  const watcher = watch(dir, { signal: ac.signal });
+  let nextEvent = watcher.next();
   try {
-    for await (const event of watch(dir, { signal: ac.signal })) {
-      if (event.filename === target && (await fileExists(file))) {
-        clearTimeout(timer);
+    while (!ac.signal.aborted) {
+      if (await fileExists(file)) {
         return true;
+      }
+      const result = await Promise.race([
+        nextEvent,
+        delay(100).then(() => undefined),
+      ]);
+      if (result && !result.done) {
+        if (result.value.filename === target && (await fileExists(file))) {
+          return true;
+        }
+        nextEvent = watcher.next();
       }
     }
   } catch (e: any) {
@@ -69,23 +81,34 @@ async function waitForCreation(file: string, timeout: number): Promise<boolean> 
       return false;
     }
     throw e;
+  } finally {
+    clearTimeout(timer);
+    ac.abort();
   }
   return false;
 }
 
 async function waitForRemoval(file: string, timeout: number): Promise<boolean> {
-  if (!(await fileExists(file))) {
-    return true;
-  }
   const dir = path.dirname(file);
   const target = path.basename(file);
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeout);
+  const watcher = watch(dir, { signal: ac.signal });
+  let nextEvent = watcher.next();
   try {
-    for await (const event of watch(dir, { signal: ac.signal })) {
-      if (event.filename === target && !(await fileExists(file))) {
-        clearTimeout(timer);
+    while (!ac.signal.aborted) {
+      if (!(await fileExists(file))) {
         return true;
+      }
+      const result = await Promise.race([
+        nextEvent,
+        delay(100).then(() => undefined),
+      ]);
+      if (result && !result.done) {
+        if (result.value.filename === target && !(await fileExists(file))) {
+          return true;
+        }
+        nextEvent = watcher.next();
       }
     }
   } catch (e: any) {
@@ -93,6 +116,9 @@ async function waitForRemoval(file: string, timeout: number): Promise<boolean> {
       return false;
     }
     throw e;
+  } finally {
+    clearTimeout(timer);
+    ac.abort();
   }
   return false;
 }

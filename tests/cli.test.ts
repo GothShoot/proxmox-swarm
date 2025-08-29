@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -21,6 +21,12 @@ describe('cli daemon start', () => {
     ({ pidFile } = await import('../src/core/runtime'));
   });
 
+  afterEach(() => {
+    try {
+      fs.unlinkSync(pidFile);
+    } catch {}
+  });
+
   afterAll(() => {
     fs.rmSync(runtime, { recursive: true, force: true });
   });
@@ -34,6 +40,38 @@ describe('cli daemon start', () => {
     }, 50);
     await startDaemon();
     expect(fired).toBe(true);
+  });
+
+  it('detects pid file created before watch is ready', async () => {
+    vi.resetModules();
+    vi.doMock('../src/core/logger', () => ({
+      createLogger: () => ({ info: () => {}, error: () => {} }),
+    }));
+    vi.doMock('child_process', () => ({
+      spawn: vi.fn(() => ({ unref: () => {} })),
+    }));
+    vi.doMock('fs/promises', async () => {
+      const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+      return {
+        ...actual,
+        watch: (dir: string, opts: any) => {
+          async function* generator() {
+            await new Promise((r) => setTimeout(r, 20));
+            const real = actual.watch(dir, opts);
+            for await (const ev of real) {
+              yield ev;
+            }
+          }
+          return generator();
+        },
+      };
+    });
+    const { startDaemon } = await import('../src/commands/cli');
+    setTimeout(() => {
+      fs.writeFileSync(pidFile, String(process.pid));
+    }, 5);
+    await startDaemon();
+    vi.unmock('fs/promises');
   });
 });
 
