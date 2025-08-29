@@ -35,4 +35,9 @@ given overlay network using the Proxmox SDN API. Network tags and VLAN IDs can
 be defined per service in the compose file via `tags` and `vlan` fields. VLAN IDs
 must be integers between 0 and 4094.
 
+CephFS subvolumes can be defined in the compose file's `volumes` section. These
+subvolumes are created (if necessary) during deployment and mounted into each
+container based on the `volumes` lists of individual services. Mount options such
+as read/write mode or quotas can be specified under the volume's `options`.
+
 Additional subcommands can be added in the future using the extensible architecture in `src/cli.ts`.
