@@ -2,10 +2,11 @@
   "name": "proxmox-swarm",
   "version": "0.1.0",
   "description": "CLI wrapper for Proxmox in TypeScript",
-  "main": "dist/cli.js",
+  "main": "dist/commands/cli.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/cli.js",
+    "start": "node dist/commands/cli.js",
+    "build:cli": "npm run build && pkg --targets node18-linux-x64 dist/commands/cli.js --output dist/proxmox-swarm"
     "test": "vitest run"
   },
   "dependencies": {
@@ -18,7 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
-    "typescript": "^5.4.0",
     "vitest": "^3.2.4"
+    "pkg": "^5.8.1",
+    "typescript": "^5.4.0"
   }
 }
