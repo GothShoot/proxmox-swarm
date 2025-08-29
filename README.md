@@ -2,6 +2,73 @@
 
 A simple TypeScript CLI app to manage Proxmox LXC like a Docker Swarm using the Proxmox CLI.
 
+## Prérequis
+
+- Proxmox VE installé et accessible via la CLI `pve`.
+- Fonctionnalité SDN activée sur le cluster.
+- Cluster Ceph opérationnel pour les volumes CephFS.
+- Node.js et npm pour exécuter les scripts.
+
+## Exemple de fichier Compose et commandes
+
+```yaml
+services:
+  web:
+    image: local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst
+    ports:
+      - "8080:80"
+    environment:
+      NODE_ENV: production
+    replicas: 2
+    tags: ["overlay"]
+    vlan: 100
+    volumes:
+      - webdata:/var/www/html
+  db:
+    image: local:vztmpl/mariadb-10.11-standard_10.11-1_amd64.tar.zst
+    environment:
+      MYSQL_ROOT_PASSWORD: exemple
+    volumes:
+      - dbdata:/var/lib/mysql
+
+volumes:
+  webdata:
+    subvolume: cephfs/web
+  dbdata:
+    subvolume: cephfs/db
+```
+
+Installation et déploiement :
+
+```bash
+npm install
+npm run build
+node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
+```
+
+Commandes supplémentaires :
+
+```bash
+node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> start <vmid>
+node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> stop <vmid>
+```
+
+## Limitations
+
+- Seuls les champs de base du format compose sont interprétés.
+- Aucune planification avancée ; les contraintes sont passées directement à Proxmox.
+- L'intégration SDN se limite à l'attachement à un réseau existant.
+- Les volumes pris en charge sont uniquement des sous-volumes CephFS.
+- Gestion des erreurs encore rudimentaire.
+
+## Feuille de route
+
+- Support d'autres types de volumes et d'options de montage avancées.
+- Gestion étendue des réseaux SDN (création, suppression, etc.).
+- Commandes pour mettre à jour ou supprimer des services déployés.
+- Ajout de tests automatisés et de validations plus strictes.
+- Amélioration de la gestion des erreurs et des journaux.
+
 ## Usage
 
 Ensure the Proxmox CLI is installed and accessible on your system.
