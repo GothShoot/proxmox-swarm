@@ -13,6 +13,7 @@ export interface ProxmoxRunOptions {
 
 export interface IProxmoxClient {
   run(cmd: string, args: string[], auth: ProxmoxAuth, options?: ProxmoxRunOptions): number;
+  sdn(args: string[], auth: ProxmoxAuth, options?: ProxmoxRunOptions): number;
 }
 
 export class ProxmoxClient implements IProxmoxClient {
@@ -47,6 +48,10 @@ export class ProxmoxClient implements IProxmoxClient {
     }
 
     return result.status ?? 0;
+  }
+
+  sdn(args: string[], auth: ProxmoxAuth, options: ProxmoxRunOptions = {}): number {
+    return this.run('sdn', args, auth, options);
   }
 }
 
