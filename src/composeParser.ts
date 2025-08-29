@@ -47,7 +47,18 @@ export function parseCompose(filePath: string): Record<string, LXCServiceConfig>
       ? svc.tags.map((t: any) => String(t))
       : undefined;
     const vlanVal = svc.vlan;
-    const vlan = vlanVal !== undefined && vlanVal !== null ? parseInt(String(vlanVal), 10) : undefined;
+    let vlan: number | undefined;
+    if (vlanVal !== undefined && vlanVal !== null) {
+      const parsedVlan = parseInt(String(vlanVal), 10);
+      if (
+        Number.isNaN(parsedVlan) ||
+        parsedVlan < 0 ||
+        parsedVlan > 4094
+      ) {
+        throw new Error(`Invalid VLAN ID for service ${name}: ${vlanVal}`);
+      }
+      vlan = parsedVlan;
+    }
 
     result[name] = {
       image,

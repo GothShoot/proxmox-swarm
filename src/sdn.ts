@@ -5,12 +5,8 @@ export function attachToSDN(
   vmid: string,
   network: string,
   tags?: string[],
-  vlan?: number,
-  create?: boolean
-): void {
-  if (create) {
-    runProxmox('sdn', ['create', network], auth);
-  }
+  vlan?: number
+): number {
   const args = ['attach', vmid, network];
   if (tags && tags.length) {
     args.push('--tags', tags.join(','));
@@ -18,5 +14,5 @@ export function attachToSDN(
   if (vlan !== undefined) {
     args.push('--vlan', String(vlan));
   }
-  runProxmox('sdn', args, auth);
+  return runProxmox('sdn', args, auth);
 }

@@ -30,13 +30,22 @@ program
     const services = parseCompose(compose);
     const opts = program.opts();
     const auth = getAuth();
+    if (opts.sdnNetwork && opts.createSdn) {
+      const netStatus = runProxmox('sdn', ['create', opts.sdnNetwork], auth);
+      if (netStatus !== 0) {
+        process.exit(netStatus);
+      }
+    }
     for (const [name, cfg] of Object.entries(services)) {
       const status = runProxmox('deploy', [name, cfg.image], auth);
       if (status !== 0) {
         process.exit(status);
       }
       if (opts.sdnNetwork) {
-        attachToSDN(auth, name, opts.sdnNetwork, cfg.tags, cfg.vlan, opts.createSdn);
+        const sdnStatus = attachToSDN(auth, name, opts.sdnNetwork, cfg.tags, cfg.vlan);
+        if (sdnStatus !== 0) {
+          process.exit(sdnStatus);
+        }
       }
     }
   });

@@ -32,6 +32,7 @@ Available subcommands:
 
 When `--sdn-network` is specified, newly created containers are attached to the
 given overlay network using the Proxmox SDN API. Network tags and VLAN IDs can
-be defined per service in the compose file via `tags` and `vlan` fields.
+be defined per service in the compose file via `tags` and `vlan` fields. VLAN IDs
+must be integers between 0 and 4094.
 
 Additional subcommands can be added in the future using the extensible architecture in `src/cli.ts`.
