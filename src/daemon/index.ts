@@ -29,10 +29,15 @@ const server = http.createServer((req, res) => {
   res.writeHead(404);
   res.end();
 });
+fs.writeFileSync(pidFile, String(process.pid));
 
 server.listen(socketFile, () => {
-  fs.writeFileSync(pidFile, String(process.pid));
   console.log(`Daemon listening on ${socketFile}`);
+});
+
+server.on('error', (err) => {
+  console.error(err);
+  cleanup();
 });
 
 process.on('SIGTERM', cleanup);

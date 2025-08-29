@@ -49,6 +49,10 @@ const runtimeDir = path.resolve(__dirname, '../runtime');
 const pidFile = path.join(runtimeDir, 'daemon.pid');
 const logFile = path.join(runtimeDir, 'daemon.log');
 
+function sleep(ms: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function ensureRuntimeDir() {
   if (!fs.existsSync(runtimeDir)) {
     fs.mkdirSync(runtimeDir, { recursive: true });
@@ -82,8 +86,17 @@ function startDaemon() {
     stdio: ['ignore', out, err],
   });
   child.unref();
-  fs.writeFileSync(pidFile, String(child.pid));
-  console.log(`Daemon started (PID ${child.pid})`);
+  const start = Date.now();
+  const timeout = 5000;
+  while (!fs.existsSync(pidFile) && Date.now() - start < timeout) {
+    sleep(100);
+  }
+  if (fs.existsSync(pidFile)) {
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    console.log(`Daemon started (PID ${pid})`);
+  } else {
+    console.error('Failed to start daemon');
+  }
 }
 
 function stopDaemon() {
@@ -98,6 +111,15 @@ function stopDaemon() {
     return;
   }
   process.kill(pid);
+  const start = Date.now();
+  const timeout = 5000;
+  while (isRunning(pid) && Date.now() - start < timeout) {
+    sleep(100);
+  }
+  if (isRunning(pid)) {
+    console.error('Failed to stop daemon');
+    return;
+  }
   fs.unlinkSync(pidFile);
   console.log('Daemon stopped');
 }
