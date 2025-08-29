@@ -2,13 +2,15 @@ import { Command } from 'commander';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { ensureRuntimeDir, pidFile, logFile } from '../core/runtime';
+import { ensureRuntimeDir, pidFile } from '../core/runtime';
 import { ProxmoxAuth } from '../adapters/proxmoxClient';
 import { DaemonClient } from '../client/daemonClient';
+import { createLogger } from '../core/logger';
 
 const program = new Command();
 
 const client = new DaemonClient();
+const logger = createLogger();
 
 program
   .name('proxmox-swarm')
@@ -46,17 +48,15 @@ function startDaemon() {
   if (fs.existsSync(pidFile)) {
     const existing = Number(fs.readFileSync(pidFile, 'utf8'));
     if (isRunning(existing)) {
-      console.log(`Daemon already running (PID ${existing})`);
+      logger.info(`Daemon already running (PID ${existing})`);
       return;
     }
     fs.unlinkSync(pidFile);
   }
   const daemonPath = path.resolve(__dirname, '..', 'core', 'daemon.js');
-  const out = fs.openSync(logFile, 'a');
-  const err = fs.openSync(logFile, 'a');
   const child = spawn(process.execPath, [daemonPath], {
     detached: true,
-    stdio: ['ignore', out, err],
+    stdio: 'ignore',
   });
   child.unref();
   const start = Date.now();
@@ -66,20 +66,20 @@ function startDaemon() {
   }
   if (fs.existsSync(pidFile)) {
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
-    console.log(`Daemon started (PID ${pid})`);
+    logger.info(`Daemon started (PID ${pid})`);
   } else {
-    console.error('Failed to start daemon');
+    logger.error('Failed to start daemon');
   }
 }
 
 function stopDaemon() {
   if (!fs.existsSync(pidFile)) {
-    console.log('Daemon not running');
+    logger.info('Daemon not running');
     return;
   }
   const pid = Number(fs.readFileSync(pidFile, 'utf8'));
   if (!isRunning(pid)) {
-    console.log('Daemon not running');
+    logger.info('Daemon not running');
     fs.unlinkSync(pidFile);
     return;
   }
@@ -90,23 +90,23 @@ function stopDaemon() {
     sleep(100);
   }
   if (isRunning(pid)) {
-    console.error('Failed to stop daemon');
+    logger.error('Failed to stop daemon');
     return;
   }
   fs.unlinkSync(pidFile);
-  console.log('Daemon stopped');
+  logger.info('Daemon stopped');
 }
 
 function statusDaemon() {
   if (!fs.existsSync(pidFile)) {
-    console.log('Daemon not running');
+    logger.info('Daemon not running');
     return;
   }
   const pid = Number(fs.readFileSync(pidFile, 'utf8'));
   if (isRunning(pid)) {
-    console.log(`Daemon running (PID ${pid})`);
+    logger.info(`Daemon running (PID ${pid})`);
   } else {
-    console.log('Daemon not running');
+    logger.info('Daemon not running');
     fs.unlinkSync(pidFile);
   }
 }
@@ -121,7 +121,7 @@ program
       const result = await client.deploy(compose, auth, opts.sdnNetwork, opts.createSdn);
       process.exit(result.status ?? 0);
     } catch (e) {
-      console.error((e as Error).message);
+      logger.error((e as Error).message);
       process.exit(1);
     }
   });
@@ -134,7 +134,7 @@ program
       const result = await client.start(vmid, getAuth());
       process.exit(result.status ?? 0);
     } catch (e) {
-      console.error((e as Error).message);
+      logger.error((e as Error).message);
       process.exit(1);
     }
   });
@@ -147,7 +147,7 @@ program
       const result = await client.stop(vmid, getAuth());
       process.exit(result.status ?? 0);
     } catch (e) {
-      console.error((e as Error).message);
+      logger.error((e as Error).message);
       process.exit(1);
     }
   });
@@ -158,7 +158,7 @@ daemonCmd.command('stop').action(stopDaemon);
 daemonCmd.command('status').action(statusDaemon);
 
 program.parseAsync().catch((err) => {
-  console.error(err);
+  logger.error(err);
   process.exit(1);
 });
 
