@@ -7,6 +7,8 @@ export interface LXCServiceConfig {
   environment: Record<string, string>;
   replicas: number;
   constraints: string[];
+  tags?: string[];
+  vlan?: number;
 }
 
 export function parseCompose(filePath: string): Record<string, LXCServiceConfig> {
@@ -41,8 +43,21 @@ export function parseCompose(filePath: string): Record<string, LXCServiceConfig>
     const constraints: string[] = Array.isArray(svc.deploy?.placement?.constraints)
       ? svc.deploy.placement.constraints.map((c: any) => String(c))
       : [];
+    const tags: string[] | undefined = Array.isArray(svc.tags)
+      ? svc.tags.map((t: any) => String(t))
+      : undefined;
+    const vlanVal = svc.vlan;
+    const vlan = vlanVal !== undefined && vlanVal !== null ? parseInt(String(vlanVal), 10) : undefined;
 
-    result[name] = { image, ports, environment, replicas: normalizedReplicas, constraints };
+    result[name] = {
+      image,
+      ports,
+      environment,
+      replicas: normalizedReplicas,
+      constraints,
+      tags,
+      vlan,
+    };
   }
 
   return result;
