@@ -14,11 +14,24 @@ export interface IStorageService {
     mode?: string,
     options?: Record<string, string>
   ): number;
+  unmount(
+    auth: ProxmoxAuth,
+    vmid: string,
+    target: string,
+    options?: Record<string, string>
+  ): number;
+  removeSubvolume(
+    auth: ProxmoxAuth,
+    subvolume: string,
+    options?: Record<string, string>
+  ): number;
 }
 
 export class StorageService implements IStorageService {
   private readonly allowedSubvolumeOptions = new Set(['size', 'mode', 'uid', 'gid', 'quota']);
   private readonly allowedMountOptions = new Set(['uid', 'gid', 'rw', 'ro', 'quota']);
+  private readonly allowedUnmountOptions = new Set(['force']);
+  private readonly allowedRemoveSubvolumeOptions = new Set(['force']);
 
   constructor(private proxmox: IProxmoxClient) {}
 
@@ -61,6 +74,29 @@ export class StorageService implements IStorageService {
       args.push('--mode', mode);
     }
     args.push(...this.buildOptionArgs(options, this.allowedMountOptions));
+    return this.proxmox.run('cephfs', args, auth);
+  }
+
+  unmount(
+    auth: ProxmoxAuth,
+    vmid: string,
+    target: string,
+    options?: Record<string, string>
+  ): number {
+    const args = ['umount', vmid, target];
+    args.push(...this.buildOptionArgs(options, this.allowedUnmountOptions));
+    return this.proxmox.run('cephfs', args, auth);
+  }
+
+  removeSubvolume(
+    auth: ProxmoxAuth,
+    subvolume: string,
+    options?: Record<string, string>
+  ): number {
+    const args = ['subvolume', 'rm', subvolume];
+    args.push(
+      ...this.buildOptionArgs(options, this.allowedRemoveSubvolumeOptions)
+    );
     return this.proxmox.run('cephfs', args, auth);
   }
 }
