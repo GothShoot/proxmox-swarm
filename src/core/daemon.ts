@@ -5,11 +5,38 @@ import { ProxmoxClient } from '../adapters/proxmoxClient';
 import { ComposeService } from '../services/composeService';
 import { NetworkService } from '../services/networkService';
 import { StorageService } from '../services/storageService';
+import { createLogger } from './logger';
+import { Counter, Histogram, collectDefaultMetrics, register } from 'prom-client';
 
 const proxmox = new ProxmoxClient();
 const composeService = new ComposeService();
 const networkService = new NetworkService(proxmox);
 const storageService = new StorageService(proxmox);
+const logger = createLogger(true);
+
+collectDefaultMetrics();
+const requestCounter = new Counter({
+  name: 'proxmox_swarm_requests_total',
+  help: 'Total number of daemon requests',
+  labelNames: ['route'],
+});
+const requestDuration = new Histogram({
+  name: 'proxmox_swarm_request_duration_seconds',
+  help: 'Duration of daemon requests in seconds',
+  labelNames: ['route'],
+});
+
+const KNOWN_ROUTES = new Set([
+  'GET /status',
+  'GET /metrics',
+  'POST /compose/parse',
+  'POST /deploy',
+  'POST /start',
+  'POST /stop',
+  'POST /network/attach',
+  'POST /storage/subvolume',
+  'POST /storage/mount',
+]);
 
 function cleanup() {
   try { fs.unlinkSync(pidFile); } catch {}
@@ -23,10 +50,30 @@ if (fs.existsSync(socketFile)) {
   try { fs.unlinkSync(socketFile); } catch {}
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  const path = req.url?.split('?')[0] || '';
+  const key = `${req.method} ${path}`;
+  const route = KNOWN_ROUTES.has(key) ? key : 'unknown';
+  requestCounter.inc({ route });
+  const endTimer = requestDuration.startTimer({ route });
+  res.on('finish', endTimer);
+
   if (req.method === 'GET' && req.url === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/metrics') {
+    try {
+      const metrics = await register.metrics();
+      res.writeHead(200, { 'Content-Type': register.contentType });
+      res.end(metrics);
+    } catch (e) {
+      logger.error(e);
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Internal server error');
+    }
     return;
   }
 
@@ -40,8 +87,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -100,7 +148,7 @@ const server = http.createServer((req, res) => {
           for (const mount of cfg.volumes) {
             const def = volumes[mount.volume];
             if (!def) {
-              console.warn(`Volume ${mount.volume} not defined in compose file`);
+              logger.warn(`Volume ${mount.volume} not defined in compose file`);
               continue;
             }
             const mStatus = storageService.mount(
@@ -122,8 +170,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 0 }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -139,8 +188,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -156,8 +206,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -173,8 +224,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -190,8 +242,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -207,8 +260,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status }));
       } catch (e) {
+        logger.error(e);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: (e as Error).message }));
+        res.end(JSON.stringify({ error: 'Internal server error' }));
       }
     });
     return;
@@ -220,11 +274,11 @@ const server = http.createServer((req, res) => {
 fs.writeFileSync(pidFile, String(process.pid));
 
 server.listen(socketFile, () => {
-  console.log(`Daemon listening on ${socketFile}`);
+  logger.info(`Daemon listening on ${socketFile}`);
 });
 
 server.on('error', (err) => {
-  console.error(err);
+  logger.error(err);
   cleanup();
 });
 

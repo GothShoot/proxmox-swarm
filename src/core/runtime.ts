@@ -22,6 +22,6 @@ export function ensureRuntimeDir() {
 }
 
 export const pidFile = path.join(runtimeDir, 'daemon.pid');
-export const logFile = path.join(runtimeDir, 'daemon.log');
+export const logFile = process.env.SWARM_LOG_FILE || path.join(runtimeDir, 'daemon.log');
 export const socketFile = path.join(runtimeDir, 'daemon.sock');
 
