@@ -48,6 +48,13 @@ npm run build
 node dist/cli.js --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
 ```
 
+Pour générer un binaire autonome (télécharge automatiquement le runtime Node.js natif lors de la première exécution) :
+
+```bash
+npm run build:cli
+./dist/proxmox-swarm --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
+```
+
 Commandes supplémentaires :
 
 ```bash
@@ -86,6 +93,14 @@ Build the command-line interface:
 ```bash
 npm run build
 ```
+
+Build a standalone binary (this will download a native Node.js runtime on first run):
+
+```bash
+npm run build:cli
+```
+
+The executable `proxmox-swarm` will be created under `dist/`.
 
 Run the command-line interface:
 
