@@ -75,4 +75,15 @@ describe('StorageService', () => {
       auth
     );
   });
+
+  it('propagates non-zero status from run operations', () => {
+    const run = vi.fn().mockReturnValue(1);
+    const svc = new StorageService({ run } as any);
+    const auth = {};
+
+    expect(svc.createSubvolume(auth, 'sv')).toBe(1);
+    expect(svc.mount(auth, '101', '/data', 'sv')).toBe(1);
+    expect(svc.unmount(auth, '101', '/data')).toBe(1);
+    expect(svc.removeSubvolume(auth, 'sv')).toBe(1);
+  });
 });
