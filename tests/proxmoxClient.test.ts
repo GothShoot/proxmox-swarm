@@ -34,4 +34,11 @@ describe('ProxmoxClient', () => {
     const status = client.run('cmd', [], {});
     expect(status).toBe(1);
   });
+
+  it('propagates non-zero exit status', () => {
+    (spawnSync as any).mockReturnValueOnce({ status: 2 });
+    const client = new ProxmoxClient();
+    const status = client.run('cmd', [], {});
+    expect(status).toBe(2);
+  });
 });

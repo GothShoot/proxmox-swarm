@@ -101,4 +101,16 @@ describe('NetworkService', () => {
       auth
     );
   });
+
+  it('propagates non-zero status from sdn operations', () => {
+    const sdn = vi.fn().mockReturnValue(1);
+    const svc = new NetworkService({ sdn } as any);
+    const auth = {};
+
+    expect(svc.attachToSDN(auth, '200', 'net')).toBe(1);
+    expect(svc.detachFromSDN(auth, '200', 'net')).toBe(1);
+    expect(svc.createNetwork(auth, 'net')).toBe(1);
+    expect(svc.deleteNetwork(auth, 'net')).toBe(1);
+    expect(svc.configureInterface(auth, 'eth0')).toBe(1);
+  });
 });
