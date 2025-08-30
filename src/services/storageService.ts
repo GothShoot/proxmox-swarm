@@ -28,8 +28,24 @@ export interface IStorageService {
 }
 
 export class StorageService implements IStorageService {
-  private readonly allowedSubvolumeOptions = new Set(['size', 'mode', 'uid', 'gid', 'quota']);
-  private readonly allowedMountOptions = new Set(['uid', 'gid', 'rw', 'ro', 'quota']);
+  private readonly allowedSubvolumeOptions = new Set([
+    'size',
+    'mode',
+    'uid',
+    'gid',
+    'quota',
+    'compression',
+  ]);
+  private readonly allowedMountOptions = new Set([
+    'uid',
+    'gid',
+    'rw',
+    'ro',
+    'quota',
+    'atime',
+    'noatime',
+    'cache-size',
+  ]);
   private readonly allowedUnmountOptions = new Set(['force']);
   private readonly allowedRemoveSubvolumeOptions = new Set(['force']);
 
