@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/commands/cli.js",
     "build:cli": "npm run build && pkg --targets node18-linux-x64 dist/commands/cli.js --output dist/proxmox-swarm",
-    "test": "vitest run"
+    "test": "vitest run",
     "postinstall": "bash scripts/install-lws.sh"
   },
   "dependencies": {

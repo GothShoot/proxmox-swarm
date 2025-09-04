@@ -2,7 +2,7 @@
 set -e
 
 # Télécharger le projet si pas déjà présent
-if [ ! -d python_project ]; then
+if [ ! -d lws ]; then
   git clone https://github.com/fabriziosalmi/lws.git lws
 fi
 
