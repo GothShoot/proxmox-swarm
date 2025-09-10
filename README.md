@@ -6,7 +6,7 @@ A simple TypeScript CLI app to manage Proxmox LXC like a Docker Swarm using the 
 
 ## Prérequis
 
-- LWS installé (post-install npm automatique) : https://github.com/fabriziosalmi/lws.
+- LWS installé automatiquement (via `scripts/install-lws.sh`) et utilisé pour toutes les opérations Proxmox : https://github.com/fabriziosalmi/lws.
 - Fonctionnalité SDN activée sur le cluster.
 - Cluster Ceph opérationnel pour les volumes CephFS.
 - Node.js et npm pour exécuter les scripts.
