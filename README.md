@@ -1,137 +1,45 @@
 # proxmox-swarm
 
-A simple TypeScript CLI app to manage Proxmox LXC like a Docker Swarm using the Proxmox CLI.
+A Python CLI to orchestrate LXC containers on Proxmox VE similar to Docker
+Swarm.
 
-/!\ WARNING : MVP is hardely vibe-coded for rapid prototyping, must contain some breaking changes and errors /!\
+This rewrite simplifies the previous TypeScript prototype by talking directly
+to the Proxmox API using the `proxmoxer` library and removes the dependency on
+the external LWS tool.
 
-## Prérequis
+## Prerequisites
 
-- LWS installé automatiquement (via `scripts/install-lws.sh`) et utilisé pour toutes les opérations Proxmox : https://github.com/fabriziosalmi/lws.
-- Fonctionnalité SDN activée sur le cluster.
-- Cluster Ceph opérationnel pour les volumes CephFS.
-- Node.js et npm pour exécuter les scripts.
+- Python 3.9+
+- Proxmox VE cluster with optional SDN and CephFS configured
+- Install Python dependencies: `pip install -r requirements.txt`
 
-## Exemple de fichier Compose et commandes
+## Example stack file
 
 ```yaml
 services:
   web:
+    vmid: 101
     image: local:vztmpl/debian-12-standard_12.0-1_amd64.tar.zst
-    ports:
-      - "8080:80"
-    environment:
-      NODE_ENV: production
-    replicas: 2
-    tags: ["overlay"]
-    vlan: 100
-    volumes:
-      - webdata:/var/www/html
-  db:
-    image: local:vztmpl/mariadb-10.11-standard_10.11-1_amd64.tar.zst
-    environment:
-      MYSQL_ROOT_PASSWORD: exemple
-    volumes:
-      - dbdata:/var/lib/mysql
-
-volumes:
-  webdata:
-    subvolume: cephfs/web
-  dbdata:
-    subvolume: cephfs/db
+    memory: 512
+    cores: 1
+    bridge: vmbr0
 ```
-
-Installation et déploiement :
-
-```bash
-npm install
-npm run build
- node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
-```
-
-Pour générer un binaire autonome (télécharge automatiquement le runtime Node.js natif lors de la première exécution) :
-
-```bash
-npm run build:cli
-./dist/proxmox-swarm --host <HOST> --user <USER> --password <PASSWORD> --sdn-network <NETWORK> --create-sdn deploy stack.yml
-```
-
-Commandes supplémentaires :
-
-```bash
- node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> start <vmid>
- node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> stop <vmid>
-```
-
-## Limitations
-
-- Seuls les champs de base du format compose sont interprétés.
-- Aucune planification avancée ; les contraintes sont passées directement à Proxmox.
-- L'intégration SDN se limite à l'attachement à un réseau existant.
-- Les volumes pris en charge sont uniquement des sous-volumes CephFS.
-- Gestion des erreurs encore rudimentaire.
-
-## Feuille de route
-
-- Support d'autres types de volumes et d'options de montage avancées.
-- Gestion étendue des réseaux SDN (création, suppression, etc.).
-- Commandes pour mettre à jour ou supprimer des services déployés.
-- Ajout de tests automatisés et de validations plus strictes.
-- Amélioration de la gestion des erreurs et des journaux.
 
 ## Usage
 
-Ensure the Proxmox CLI is installed and accessible on your system.
-
-Install dependencies:
-
 ```bash
-npm install
+pip install -r requirements.txt
+python -m proxmox_swarm.cli --host <HOST> --user <USER> --password <PASSWORD> --node <NODE> deploy stack.yml
 ```
 
-Build the command-line interface:
+The CLI also provides simple lifecycle helpers:
 
 ```bash
-npm run build
+python -m proxmox_swarm.cli --host <HOST> --user <USER> --password <PASSWORD> start <NODE> <VMID>
+python -m proxmox_swarm.cli --host <HOST> --user <USER> --password <PASSWORD> stop <NODE> <VMID>
 ```
 
-Build a standalone binary (this will download a native Node.js runtime on first run):
+## Legacy TypeScript implementation
 
-```bash
-npm run build:cli
-```
-
-The executable `proxmox-swarm` will be created under `dist/`.
-
-Run the command-line interface:
-
-```bash
- node dist/commands/cli.js --host <HOST> --user <USER> --password <PASSWORD> [--sdn-network <NETWORK> --create-sdn] <subcommand>
-```
-
-Available subcommands:
-
-* `deploy` – Deploy a new VM (placeholder).
-* `start <vmid>` – Start an existing VM.
-* `stop <vmid>` – Stop a running VM.
-
-When `--sdn-network` is specified, newly created containers are attached to the
-given overlay network using the Proxmox SDN API. Network tags and VLAN IDs can
-be defined per service in the compose file via `tags` and `vlan` fields. VLAN IDs
-must be integers between 1 and 4094.
-The current system uses SDN in vxlan mode with overlay addresses in the 172.16.0.0/12 range.
-
-CephFS subvolumes can be defined in the compose file's `volumes` section. These
-subvolumes are created (if necessary) during deployment and mounted into each
-container based on the `volumes` lists of individual services. Mount options such
-as read/write mode or quotas can be specified under the volume's `options`.
-Volumes marked `external: true` are referenced but not created during deployment.
-Only a limited set of safe CephFS options is passed to the underlying CLI; any
-unsupported keys are ignored.
-
-Supported subvolume options: `size`, `mode`, `uid`, `gid`, `quota`, and
-`compression`.
-
-Supported mount options: `uid`, `gid`, `rw`, `ro`, `quota`, `atime`, `noatime`,
-and `cache-size`.
-
-Additional subcommands can be added in the future using the extensible architecture in `src/cli.ts`.
+The original Node.js sources and tests remain under `src/` for reference but
+are no longer required to use the Python CLI.

@@ -2,3 +2,7 @@
 node_modules/
 dist/
 lws/
+
+# Python artifacts
+__pycache__/
+*.pyc
