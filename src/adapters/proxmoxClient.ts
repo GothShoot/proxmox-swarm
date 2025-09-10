@@ -1,4 +1,5 @@
 import { spawnSync } from 'child_process';
+import path from 'path';
 
 export interface ProxmoxAuth {
   host?: string;
@@ -20,12 +21,13 @@ export class ProxmoxClient implements IProxmoxClient {
   run(cmd: string, args: string[], auth: ProxmoxAuth, options: ProxmoxRunOptions = {}): number {
     const env = {
       ...process.env,
-      PROXMOX_HOST: auth.host,
-      PROXMOX_USER: auth.user,
-      PROXMOX_PASSWORD: auth.password,
+      LWS_HOST: auth.host,
+      LWS_USER: auth.user,
+      LWS_PASSWORD: auth.password,
     } as NodeJS.ProcessEnv;
 
-    const finalArgs = [cmd, ...args];
+    const lwsPath = path.resolve(process.cwd(), 'lws', 'lws.py');
+    const finalArgs = [lwsPath, cmd, ...args];
     if (options.ports) {
       for (const port of options.ports) {
         finalArgs.push('-p', port);
@@ -37,7 +39,7 @@ export class ProxmoxClient implements IProxmoxClient {
       }
     }
 
-    const result = spawnSync('proxmox', finalArgs, {
+    const result = spawnSync('python3', finalArgs, {
       stdio: 'inherit',
       env,
     });
