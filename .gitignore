@@ -1,4 +1,7 @@
-# Node build artifacts
-node_modules/
-dist/
+# Python artifacts
+__pycache__/
+*.pyc
+.venv/
+
+# Legacy directory from optional LWS helper
 lws/
