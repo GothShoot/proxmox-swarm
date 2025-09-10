@@ -39,7 +39,11 @@ python -m proxmox_swarm.cli --host <HOST> --user <USER> --password <PASSWORD> st
 python -m proxmox_swarm.cli --host <HOST> --user <USER> --password <PASSWORD> stop <NODE> <VMID>
 ```
 
-## Legacy TypeScript implementation
+## Development
 
-The original Node.js sources and tests remain under `src/` for reference but
-are no longer required to use the Python CLI.
+Run the test suite with [pytest](https://pytest.org/):
+
+```bash
+pip install -r requirements.txt
+pytest
+```
