@@ -1,7 +1,6 @@
 # proxmox-swarm
 
-/!\ DEPRECATED /!\
-See ProxKube project
+### /!\ DEPRECATED: See [ProxKube](https://github.com/GothShoot/proxkube) project /!\\
 
 A Python CLI to orchestrate LXC containers on Proxmox VE similar to Docker
 Swarm.
